@@ -29,6 +29,11 @@ SOFTWARE.
 #include <stdarg.h>
 #include <string.h> /* For memset and memcpy */
 
+
+#if defined(__cplusplus) && defined(ENABLE_STRICT_RETURN_VALS) \
+ #include <stdexcept>
+#endif
+
 #define FFF_MAX_ARGS (20u)
 #ifndef FFF_ARG_HISTORY_LEN
     #define FFF_ARG_HISTORY_LEN (50u)
@@ -37,6 +42,16 @@ SOFTWARE.
   #define FFF_CALL_HISTORY_LEN (50u)
 #endif
 /* -- INTERNAL HELPER MACROS -- */
+
+#if defined(__cplusplus) && defined(ENABLE_STRICT_RETURN_VALS) \
+    #define SET_RETURN(FUNCNAME, VALUE) \
+                        FUNCNAME##_fake.is_enabled =  true; \
+                        FUNCNAME##_fake.return_val = VALUE; 
+#else
+    #define SET_RETURN(FUNCNAME, VALUE) \
+                        FUNCNAME##_fake.return_val = VALUE;
+#endif
+
 #define SET_RETURN_SEQ(FUNCNAME, ARRAY_POINTER, ARRAY_LEN) \
                         FUNCNAME##_fake.return_val_seq = ARRAY_POINTER; \
                         FUNCNAME##_fake.return_val_seq_len = ARRAY_LEN;
@@ -71,11 +86,20 @@ SOFTWARE.
 #define HISTORY_DROPPED(FUNCNAME) \
     FUNCNAME##_fake.arg_histories_dropped++
 
-#define DECLARE_VALUE_FUNCTION_VARIABLES(RETURN_TYPE) \
-    RETURN_TYPE return_val; \
-    int return_val_seq_len; \
-    int return_val_seq_idx; \
-    RETURN_TYPE * return_val_seq; \
+#if defined(__cplusplus) && defined(ENABLE_STRICT_RETURN_VALS) \
+    #define DECLARE_VALUE_FUNCTION_VARIABLES(RETURN_TYPE) \
+        RETURN_TYPE return_val; \
+        int return_val_seq_len; \
+        int return_val_seq_idx; \
+        RETURN_TYPE * return_val_seq; \
+        bool is_enabled; \
+#else
+    #define DECLARE_VALUE_FUNCTION_VARIABLES(RETURN_TYPE) \
+        RETURN_TYPE return_val; \
+        int return_val_seq_len; \
+        int return_val_seq_idx; \
+        RETURN_TYPE * return_val_seq; \
+#endif
 
 #define DECLARE_CUSTOM_FAKE_SEQ_VARIABLES \
     int custom_fake_seq_len; \
@@ -84,6 +108,15 @@ SOFTWARE.
 #define INCREMENT_CALL_COUNT(FUNCNAME) \
     FUNCNAME##_fake.call_count++
 
+#if defined(__cplusplus) && defined(ENABLE_STRICT_RETURN_VALS) \
+    #define STRICTNESS_CHECK(FUNCNAME) \
+        if (!FUNCNAME##_fake.is_enabled) { \
+            throw std::domain_error("Error in " << __FILE__  << ":" << __LINE__ << "Function " << FUNCNAME << " not set up!"); \
+        }
+#else
+    #define STRICTNESS_CHECK(FUNCNAME) 
+#endif
+
 #define RETURN_FAKE_RESULT(FUNCNAME) \
     if (FUNCNAME##_fake.return_val_seq_len){ /* then its a sequence */ \
         if(FUNCNAME##_fake.return_val_seq_idx < FUNCNAME##_fake.return_val_seq_len) { \
@@ -91,6 +124,7 @@ SOFTWARE.
         } \
         return FUNCNAME##_fake.return_val_seq[FUNCNAME##_fake.return_val_seq_len-1]; /* return last element */ \
     } \
+    STRICTNESS_CHECK(FUNCNAME); \
     return FUNCNAME##_fake.return_val; \
 
 #ifdef __cplusplus
